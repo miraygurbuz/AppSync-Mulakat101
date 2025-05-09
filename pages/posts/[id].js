@@ -4,7 +4,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import ReactMarkdown from "react-markdown"
 import "../../configureAmplify"
-import { listPosts, getPost, commentsByPostID } from "../../src/graphql/queries"
+import { getPost, commentsByPostID } from "../../src/graphql/queries"
 import { Calendar, User, Clock, ArrowLeft, Copy, Share2, MessageCircle, Send } from "lucide-react"
 import Link from "next/link"
 import Moment from "moment"
@@ -25,9 +25,10 @@ const initialState = { message: ""}
 
 Moment.locale("tr")
 
-export default function Post({ post }) {
+export default function Post() {
     const [signedInUser, setSignedInUser] = useState(false)
     const [coverImage, setCoverImage] = useState(null)
+    const [post, setPost] = useState(null)
     const [loading, setLoading] = useState(true)
     const [comment, setComment ] = useState(initialState)
     const [showMe, setShowMe] = useState(false)
@@ -40,6 +41,8 @@ export default function Post({ post }) {
     const [totalPages, setTotalPages] = useState(0)
     
     const { message } = comment
+    const router = useRouter()
+    const { id } = router.query
     
     useEffect(()=>{
         authListener();
@@ -63,6 +66,33 @@ export default function Post({ post }) {
     useEffect(() => {
         setIsMounted(true)
     }, [])
+    
+    useEffect(() => {
+        if (id) {
+            fetchPost()
+        }
+    }, [id])
+    
+    async function fetchPost() {
+        try {
+            const postData = await API.graphql({
+                query: getPost,
+                variables: { id },
+                authMode: "API_KEY"
+            })
+            
+            const fetchedPost = postData.data.getPost
+            setPost(fetchedPost)
+            
+            if (fetchedPost) {
+                updateCoverImage(fetchedPost)
+                fetchComments(fetchedPost.id)
+            }
+        } catch (error) {
+            console.error("Error fetching post:", error)
+            router.push('/404')
+        }
+    }
     
     function toggle(){
         setShowMe(!showMe)
@@ -88,15 +118,6 @@ export default function Post({ post }) {
         ]
     };
     
-    const router = useRouter()
-
-    useEffect(() => {
-        if (post) {
-            updateCoverImage()
-            fetchComments()
-        }
-    }, [post])
-    
     useEffect(() => {
         setTotalPages(Math.max(1, Math.ceil(comments.length / commentsPerPage)))
     }, [comments, commentsPerPage])
@@ -107,13 +128,15 @@ export default function Post({ post }) {
         }
     }, [currentPage, totalPages])
     
-    async function updateCoverImage() {
+    async function updateCoverImage(currentPost) {
         try {
-            if (post.coverImage) {
-                const imageKey = await Storage.get(post.coverImage)
+            if (currentPost.coverImage) {
+                const imageKey = await Storage.get(currentPost.coverImage)
                 setCoverImage(imageKey)
             }
-        } catch (error) {}
+        } catch (error) {
+            console.error("Error fetching cover image:", error)
+        }
         finally {
             setLoading(false)
         }
@@ -142,11 +165,11 @@ export default function Post({ post }) {
         }
     }
 
-    async function fetchComments() {
+    async function fetchComments(postId) {
         try {
             const commentData = await API.graphql({
                 query: commentsByPostID,
-                variables: { postID: post.id }
+                variables: { postID: postId }
             })
             const sortedComments = commentData.data.commentsByPostID.items.sort(
                 (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
@@ -159,7 +182,7 @@ export default function Post({ post }) {
         }
     }
 
-    if (router.isFallback || loading) {
+    if (!id || !post || loading) {
         return (
             <div className="min-h-screen flex justify-center items-center font-mono">
                 <div className="animate-pulse flex flex-col items-center">
@@ -184,7 +207,7 @@ export default function Post({ post }) {
         toast.success("Yorumunuz eklendi!");
         setComment(initialState);
         setShowMe(false);
-        fetchComments();
+        fetchComments(post.id);
     }
 
     const handlePageChange = (action) => {
@@ -398,47 +421,4 @@ export default function Post({ post }) {
         </div>
         </>
     )
-}
-
-export async function getStaticPaths() {
-    try {
-        const postData = await API.graphql({
-            query: listPosts,
-            authMode: "API_KEY"
-        })
-        const paths = postData.data.listPosts.items.map((post) => ({
-            params: { id: post.id },
-        }))
-        return {
-            paths,
-            fallback: false,
-        }
-    } catch (error) {
-        console.error("Error fetching posts for static paths:", error)
-        return {
-            paths: [],
-            fallback: false,
-        }
-    }
-}
-
-export async function getStaticProps({ params }) {
-    try {
-        const { id } = params
-        const postData = await API.graphql({
-            query: getPost,
-            variables: { id },
-            authMode: "API_KEY"
-        })
-        return {
-            props: {
-                post: postData.data.getPost,
-            },
-        }
-    } catch (error) {
-        console.error("Error fetching post for static props:", error)
-        return {
-            notFound: true
-        }
-    }
 }

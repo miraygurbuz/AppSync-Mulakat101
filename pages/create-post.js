@@ -85,7 +85,7 @@ async function createNewPost() {
       authMode: "AMAZON_COGNITO_USER_POOLS",
     });
     
-    router.push(`/posts/${id}`);
+    router.push('/dashboard');
     toast.success("Gönderi başarıyla yayınlandı!");
   } catch (error) {
     toast.error("Gönderi oluşturulurken bir hata oluştu!");

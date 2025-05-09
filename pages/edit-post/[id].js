@@ -4,65 +4,21 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import { updatePost } from "../../src/graphql/mutations";
-import { getPost, listPosts } from "../../src/graphql/queries";
+import { getPost } from "../../src/graphql/queries";
 import { v4 as uuid } from "uuid";
 import { FileText, Save, ArrowLeft, RefreshCw, Upload, X, Image } from 'lucide-react';
 import Link from "next/link";
 import { withAuthenticator } from '@aws-amplify/ui-react';
+import "../../configureAmplify";
 
 const SimpleMdeReact = dynamic(() => import("react-simplemde-editor"), {
   ssr: false,
 });
 import "easymde/dist/easymde.min.css";
 
-export async function getStaticPaths() {
-  try {
-    const postData = await API.graphql({
-      query: listPosts,
-      authMode: "API_KEY"
-    });
-
-    const posts = postData.data.listPosts.items;
-    const paths = posts.map(post => ({ params: { id: post.id } }));
-
-    return {
-      paths,
-      fallback: false
-    };
-  } catch (error) {
-    console.error("Error fetching posts for static paths:", error);
-    return {
-      paths: [],
-      fallback: false
-    };
-  }
-}
-
-export async function getStaticProps({ params }) {
-  try {
-    const { id } = params;
-    const postData = await API.graphql({
-      query: getPost,
-      variables: { id },
-      authMode: "API_KEY"
-    });
-
-    return {
-      props: {
-        post: postData.data.getPost
-      }
-    };
-  } catch (error) {
-    console.error("Error fetching post for static props:", error);
-    return {
-      notFound: true
-    };
-  }
-}
-
-function EditPost({ post: initialPost }) {
-  const [post, setPost] = useState(initialPost || null);
-  const [isLoading, setIsLoading] = useState(!initialPost);
+function EditPost() {
+  const [post, setPost] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [coverImage, setCoverImage] = useState(null);
@@ -73,37 +29,36 @@ function EditPost({ post: initialPost }) {
   const { id } = router.query;
 
   useEffect(() => {
-    if (initialPost) {
-      setPost(initialPost);
-      originalPost.current = JSON.stringify(initialPost);
-      if(initialPost.coverImage) {
-        updateCoverImage(initialPost.coverImage);
-      }
-      setIsLoading(false);
-    } else if (id) {
+    if (id) {
       fetchPost();
     }
+  }, [id]);
 
-    async function fetchPost() {
-      try {
-        setIsLoading(true);
-        const postData = await API.graphql({
-          query: getPost,
-          variables: { id }
-        });
-        const fetchedPost = postData.data.getPost;
-        setPost(fetchedPost);
-        originalPost.current = JSON.stringify(fetchedPost);
-        if(postData.data.getPost.coverImage){
-          updateCoverImage(postData.data.getPost.coverImage);
-        }
-      } catch (error) {
-        console.error("Error fetching post:", error);
-      } finally {
-        setIsLoading(false);
+  async function fetchPost() {
+    if (!id) return;
+    
+    try {
+      setIsLoading(true);
+      const postData = await API.graphql({
+        query: getPost,
+        variables: { id },
+        authMode: "API_KEY"
+      });
+      
+      const fetchedPost = postData.data.getPost;
+      setPost(fetchedPost);
+      originalPost.current = JSON.stringify(fetchedPost);
+      
+      if (fetchedPost.coverImage) {
+        updateCoverImage(fetchedPost.coverImage);
       }
+    } catch (error) {
+      console.error("Error fetching post:", error);
+      router.push("/my-posts");
+    } finally {
+      setIsLoading(false);
     }
-  }, [id, initialPost]);
+  }
 
   useEffect(() => {
     if (post && originalPost.current) {
@@ -116,31 +71,22 @@ function EditPost({ post: initialPost }) {
     }
   }, [post, coverImage]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-32 w-32 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 animate-spin mb-4"></div>
-          <p className="text-indigo-400 text-xl font-mono">Gönderi Yükleniyor...</p>
-        </div>
-      </div>
-    );
+  async function updateCoverImage(coverImage) {
+    try {
+      const imageKey = await Storage.get(coverImage);
+      setCoverImage(imageKey);
+    } catch (error) {
+      console.error("Error getting cover image:", error);
+    }
   }
 
-  if (!post) return null;
-
-  async function updateCoverImage(coverImage){
-    const imageKey = await Storage.get(coverImage);
-    setCoverImage(imageKey);
-  }
-
-  async function uploadImage(){
+  async function uploadImage() {
     fileInput.current.click();
   }
 
-  function handleChange(e){
+  function handleChange(e) {
     const fileUpload = e.target.files[0];
-    if (!fileUpload) return
+    if (!fileUpload) return;
     setCoverImage(fileUpload);
     setLocalImage(URL.createObjectURL(fileUpload));
     setHasChanges(true);
@@ -150,24 +96,23 @@ function EditPost({ post: initialPost }) {
     setCoverImage(null);
     setLocalImage(null);
     fileInput.current.value = "";
+    setHasChanges(true);
   }
 
   function onChange(e) {
     setPost(() => ({ ...post, [e.target.name]: e.target.value }));
   }
 
-  const { title, content } = post;
-
   async function updateCurrentPost() {
-    if (!title || !content) return;
+    if (!post || !post.title || !post.content) return;
     
     try {
       setIsSaving(true);
       
       let postUpdated = {
         id,
-        content,
-        title
+        content: post.content,
+        title: post.title
       };
       
       if (coverImage && typeof coverImage === 'object') {
@@ -190,6 +135,17 @@ function EditPost({ post: initialPost }) {
       console.error("Error updating post:", error);
       setIsSaving(false);
     }
+  }
+
+  if (isLoading || !post) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-32 w-32 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 animate-spin mb-4"></div>
+          <p className="text-indigo-400 text-xl font-mono">Gönderi Yükleniyor...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -293,7 +249,7 @@ function EditPost({ post: initialPost }) {
               type="button"
               className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r ${hasChanges ? 'from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700' : 'from-gray-600 to-gray-700'} text-white rounded-lg transition-all duration-300 font-medium shadow-lg hover:shadow-indigo-500/30 ${isSaving || !hasChanges ? 'opacity-70 cursor-not-allowed' : ''}`}
               onClick={updateCurrentPost}
-              disabled={isSaving || !hasChanges || !title || !content}
+              disabled={isSaving || !hasChanges || !post.title || !post.content}
             >
               {isSaving ? (
                 <RefreshCw size={18} className="animate-spin" />
