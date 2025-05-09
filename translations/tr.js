@@ -16,5 +16,8 @@ export const trTranslations = {
     'Create account': 'Hesap oluştur',
     'Create Account': 'HESAP OLUŞTUR',
     'Sign In': 'GİRİŞ YAP',
-    'Sign in': 'Giriş yap'
+    'Sign in': 'Giriş yap',
+    'Reset your password': 'Şifrenizi sıfırlayın',
+    'Back to Sign In': 'Giriş yapmaya geri dönün',
+    'Send Code': 'Kodu Gönder'
   };
