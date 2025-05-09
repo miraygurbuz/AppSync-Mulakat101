@@ -1,0 +1,20 @@
+export const trTranslations = {
+    'Sign in to your account': 'Hesabınıza giriş yapın',
+    'Create a new account': 'Yeni bir hesap oluşturun',
+    'Username *': 'Kullanıcı adı*',
+    'Username': 'Kullanıcı adı',
+    'Enter your username': 'Kullanıcı adınızı girin',
+    'Enter your password': 'Şifrenizi girin',
+    'Password *': 'Şifre*',
+    'Password': 'Şifre',
+    'Email Address *': 'Email Adresi*',
+    'Phone Number *': 'Telefon Numarası*',
+    'Forgot your password?': 'Şifrenizi mi unuttunuz?',
+    'Reset password': 'Şifreyi sıfırla',
+    'No account?': 'Hesabınız yok mu?',
+    'Have an account?': 'Hesabınız var mı?',
+    'Create account': 'Hesap oluştur',
+    'Create Account': 'HESAP OLUŞTUR',
+    'Sign In': 'GİRİŞ YAP',
+    'Sign in': 'Giriş yap'
+  };
